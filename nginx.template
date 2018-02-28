@@ -1,0 +1,58 @@
+#tuning based on https://tweaked.io/guide/nginx/
+user  nginx;
+worker_processes  4;
+
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections 8096;
+    multi_accept       on;
+    use                epoll;
+}
+
+worker_rlimit_nofile 40000;
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    add_header              X-Edge-Intranet-1 true;
+    tcp_nodelay             on;
+    keepalive_timeout       1200;
+    client_max_body_size    400M;
+    client_body_buffer_size 16k;
+    client_header_buffer_size 1k;
+    large_client_header_buffers 2 2k;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+#    proxy_redirect          off;
+#    proxy_set_header        Host            $host;
+    proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+#    proxy_http_version      1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_connect_timeout   1200; #default 60
+    proxy_send_timeout      1200; #default 60
+    proxy_read_timeout      1200; #default 60
+    proxy_buffering         off; #avoid large file download errors
+    proxy_buffer_size       128k;
+    proxy_buffers           100 128k;
+    send_timeout	    1200;
+
+    server {
+       listen 80 default_server;
+       server_name _;
+
+       expires -1;
+       location / {
+           proxy_pass ${PROXY_PASS};
+       }
+    }
+}
